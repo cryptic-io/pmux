@@ -30,7 +30,7 @@ To run you do `pmux -c pmux.yml`. If `-c` isn't provided then pmux will look for
 This repo contains [an example config file](pmux-example.yml), which shows off
 all possible configuration options.
 
-The output the stream from this example config looks something like this:
+The stdoutput from this example config looks something like this:
 
 ```
 2021-09-21T16:32:48.513-06:00 | stubborn-pinger | starting process
@@ -59,7 +59,7 @@ The output the stream from this example config looks something like this:
 2021-09-21T16:32:49.553-06:00 > stubborn-pinger > --- example.com ping statistics ---
 2021-09-21T16:32:49.553-06:00 > stubborn-pinger > 1 packets transmitted, 1 received, 0% packet loss, time 0ms
 
-...
+... Ctrl-C
 
 ^C2021-09-21T16:32:50.894-06:00 | pmux            | interrupt signal received, killing all sub-processes
 2021-09-21T16:32:50.895-06:00 > stubborn-pinger > i will never stop, you will have to SIGKILL me!
