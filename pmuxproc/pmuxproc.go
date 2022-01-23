@@ -57,7 +57,18 @@ func (cfg Config) withDefaults() Config {
 	return cfg
 }
 
-func runProcessOnce(ctx context.Context, logger Logger, cfg Config) error {
+// RunProcessOnce runs the process described by the Config (though it doesn't
+// use all fields from the Config). The process is killed if the context is
+// canceled.
+//
+// It returns nil if the process exits normally with a zero status. It returns
+// an error otherwise.
+//
+// The stdout and stderr of the process will be written to the given Logger, as
+// well as various runtime events.
+func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) error {
+
+	cfg = cfg.withDefaults()
 
 	var wg sync.WaitGroup
 
@@ -111,6 +122,7 @@ func runProcessOnce(ctx context.Context, logger Logger, cfg Config) error {
 	// in order to ensure this go-routine always gets cleaned up.
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+
 	go func(proc *os.Process) {
 		select {
 		case <-ctx.Done():
@@ -154,7 +166,7 @@ func RunProcess(ctx context.Context, logger Logger, cfg Config) {
 
 	for {
 		start := time.Now()
-		err := runProcessOnce(ctx, logger, cfg)
+		err := RunProcessOnce(ctx, logger, cfg)
 		took := time.Since(start)
 
 		if err != nil {
