@@ -96,9 +96,10 @@ func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) error {
 	}
 
 	cmd := exec.Command(cfg.Cmd, cfg.Args...)
-	cmd.Dir = cfg.Dir
 
-	cmd.Env = make([]string, 0, len(cfg.Env))
+	cmd.Dir = cfg.Dir
+	cmd.Env = os.Environ()
+
 	for k, v := range cfg.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
