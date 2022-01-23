@@ -25,6 +25,10 @@ type Config struct {
 	// Env describes the environment variables to set on the process.
 	Env map[string]string `yaml:"env"`
 
+	// Dir is the directory the process will be run in. If not set then the
+	// process is run in the same directory as this parent process.
+	Dir string
+
 	// MinWait and MaxWait are the minimum and maximum amount of time between
 	// restarts that RunProcess will wait.
 	//
@@ -92,6 +96,7 @@ func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) error {
 	}
 
 	cmd := exec.Command(cfg.Cmd, cfg.Args...)
+	cmd.Dir = cfg.Dir
 
 	cmd.Env = make([]string, 0, len(cfg.Env))
 	for k, v := range cfg.Env {
