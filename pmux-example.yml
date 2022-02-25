@@ -19,6 +19,8 @@ processes:
     env:
       TARGET: example.com
 
+    dir: "/tmp"
+
     # pmux uses an exponential backoff when restarting a process, so subsequent
     # restarts will each take longer and longer. minWait/maxWait indicate the
     # min/max wait times between restarts of this process, respectively.
