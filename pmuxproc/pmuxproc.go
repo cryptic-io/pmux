@@ -134,16 +134,11 @@ func RunProcessOnce(
 		return -1, fmt.Errorf("starting process: %w", err)
 	}
 
-	// go-routine which will sent interrupt if the context is cancelled. Also
-	// waits on a secondary channel, which is closed when this function returns,
-	// in order to ensure this go-routine always gets cleaned up.
 	stopCh := make(chan struct{})
-	defer close(stopCh)
 
 	go func(proc *os.Process) {
 		select {
 		case <-ctx.Done():
-			_ = proc.Signal(os.Interrupt)
 		case <-stopCh:
 			return
 		}
@@ -153,13 +148,14 @@ func RunProcessOnce(
 			sysLogger.Println("forcefully killing process")
 			_ = proc.Signal(os.Kill)
 		case <-stopCh:
-			return
 		}
 	}(cmd.Process)
 
 	wg.Wait()
 
 	err = cmd.Wait()
+	close(stopCh)
+
 	exitCode := cmd.ProcessState.ExitCode()
 
 	if err != nil {

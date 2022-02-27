@@ -193,7 +193,7 @@ func main() {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
 		sig := <-sigCh
-		sysLogger.Printf("%v signal received, killing all sub-processes", sig)
+		sysLogger.Printf("%v signal received, waiting for child processes to exit", sig)
 		cancel()
 
 		<-sigCh
