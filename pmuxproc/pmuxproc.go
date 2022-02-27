@@ -45,7 +45,7 @@ type Config struct {
 
 	// NoRestartOn indicates which exit codes should result in the process not
 	// being restarted any further.
-	NoRestartOn []int `yaml:"no_restart_on"`
+	NoRestartOn []int `yaml:"noRestartOn"`
 }
 
 func (cfg Config) withDefaults() Config {
