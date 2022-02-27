@@ -135,11 +135,18 @@ func (l *logger) println(line string) {
 	l.l.Lock()
 	defer l.l.Unlock()
 
+	if l.timeFmt != "" {
+		fmt.Fprintf(
+			l.outBuf,
+			"%s %c ",
+			time.Now().Format(l.timeFmt),
+			l.sep,
+		)
+	}
+
 	fmt.Fprintf(
 		l.outBuf,
-		"%s %c %s%s%c %s\n",
-		time.Now().Format(l.timeFmt),
-		l.sep,
+		"%s%s%c %s\n",
 		l.pname,
 		strings.Repeat(" ", int(*l.maxPNameLen+1)-len(l.pname)),
 		l.sep,
@@ -166,10 +173,6 @@ type config struct {
 }
 
 func (cfg config) init() (config, error) {
-
-	if cfg.TimeFormat == "" {
-		cfg.TimeFormat = "2006-01-02T15:04:05.000Z07:00"
-	}
 
 	if len(cfg.Processes) == 0 {
 		return config{}, errors.New("no processes defined")

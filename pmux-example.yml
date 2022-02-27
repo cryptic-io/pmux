@@ -3,6 +3,8 @@
 # timeFormat defines the formatting of timestamps. See
 # https://pkg.go.dev/time#pkg-constants for more info on how the formatting
 # string works.
+#
+# If timeFormat isn't set then the time is not included in each log line.
 timeFormat: "2006-01-02T15:04:05.000Z07:00"
 
 # processes is the only required field, it must have at least one process
