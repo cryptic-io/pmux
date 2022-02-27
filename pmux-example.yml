@@ -5,7 +5,7 @@
 # string works.
 #
 # If timeFormat isn't set then the time is not included in each log line.
-timeFormat: "2006-01-02T15:04:05.000Z07:00"
+#timeFormat: "2006-01-02T15:04:05.000Z07:00"
 
 # processes is the only required field, it must have at least one process
 # defined.
@@ -42,7 +42,7 @@ processes:
     args:
       - "-c"
       - |
-        trap "echo 'i will never stop, you will have to SIGKILL me!'" SIGINT
+        trap "echo 'i will never stop, you will have to SIGKILL me!' >&2" SIGINT
         while ping -c1 example.com; do sleep 1; done
 
     sigKillWait: 1s

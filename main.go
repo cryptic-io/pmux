@@ -25,8 +25,9 @@ const pmuxPName = "pmux"
 
 // characters used to denote different kinds of logs
 const (
-	logSepProcOut = '>'
-	logSepSys     = '|'
+	logSepStdout = '›'
+	logSepStderr = '»'
+	logSepSys    = '~'
 )
 
 type logger struct {
@@ -39,15 +40,13 @@ type logger struct {
 	// maxPNameLen is a pointer because it changes when WithPrefix is called.
 	maxPNameLen *uint64
 
-	wg      *sync.WaitGroup
-	closeCh chan struct{}
-
 	pname string
 	sep   rune
 }
 
 func newLogger(
 	out io.Writer,
+	sep rune,
 	timeFmt string,
 ) *logger {
 
@@ -60,25 +59,22 @@ func newLogger(
 		l:           new(sync.Mutex),
 		out:         out,
 		outBuf:      bufio.NewWriter(out),
-		wg:          new(sync.WaitGroup),
-		closeCh:     make(chan struct{}),
 		pname:       pname,
-		sep:         logSepSys,
+		sep:         sep,
 	}
-
-	l.wg.Add(1)
-	go func() {
-		defer l.wg.Done()
-		l.flusher()
-	}()
 
 	return l
 }
 
-func (l *logger) WithPrefix(pname string, sep rune) *logger {
+func (l *logger) withSep(sep rune) *logger {
+	l2 := *l
+	l2.sep = sep
+	return &l2
+}
+
+func (l *logger) withPName(pname string) *logger {
 	l2 := *l
 	l2.pname = pname
-	l2.sep = sep
 
 	l2.l.Lock()
 	defer l2.l.Unlock()
@@ -95,9 +91,6 @@ func (l *logger) Close() {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	close(l.closeCh)
-	l.wg.Wait()
-
 	l.outBuf.Flush()
 
 	if syncer, ok := l.out.(interface{ Sync() error }); ok {
@@ -111,23 +104,6 @@ func (l *logger) Close() {
 	// should just do nothing.
 	l.out = ioutil.Discard
 	l.outBuf = bufio.NewWriter(l.out)
-}
-
-func (l *logger) flusher() {
-
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			l.l.Lock()
-			l.outBuf.Flush()
-			l.l.Unlock()
-		case <-l.closeCh:
-			return
-		}
-	}
 }
 
 func (l *logger) println(line string) {
@@ -152,6 +128,8 @@ func (l *logger) println(line string) {
 		l.sep,
 		line,
 	)
+
+	l.outBuf.Flush()
 }
 
 func (l *logger) Println(line string) {
@@ -199,9 +177,15 @@ func main() {
 		panic(fmt.Sprintf("initializing config: %v", err))
 	}
 
-	logger := newLogger(os.Stdout, cfg.TimeFormat)
-	defer logger.Close()
-	defer logger.Println("exited gracefully, ciao!")
+	stdoutLogger := newLogger(os.Stdout, logSepStdout, cfg.TimeFormat)
+	defer stdoutLogger.Close()
+
+	stderrLogger := newLogger(os.Stderr, logSepStderr, cfg.TimeFormat)
+	defer stderrLogger.Close()
+
+	sysLogger := stderrLogger.withSep(logSepSys)
+
+	defer sysLogger.Println("exited gracefully, ciao!")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -209,12 +193,12 @@ func main() {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
 		sig := <-sigCh
-		logger.Printf("%v signal received, killing all sub-processes", sig)
+		sysLogger.Printf("%v signal received, killing all sub-processes", sig)
 		cancel()
 
 		<-sigCh
-		logger.Printf("forcefully exiting pmux process, there may be zombie child processes being left behind, good luck!")
-		logger.Close()
+		sysLogger.Printf("forcefully exiting pmux process, there may be zombie child processes being left behind, good luck!")
+		sysLogger.Close()
 		os.Exit(1)
 	}()
 
@@ -226,11 +210,17 @@ func main() {
 		go func(procCfg processConfig) {
 			defer wg.Done()
 
-			logger := logger.WithPrefix(procCfg.Name, logSepProcOut)
-			defer logger.Printf("stopped process handler")
+			stdoutLogger := stdoutLogger.withPName(procCfg.Name)
+			stderrLogger := stderrLogger.withPName(procCfg.Name)
+			sysLogger := sysLogger.withPName(procCfg.Name)
 
-			logger.Println("starting process")
-			pmuxproc.RunProcess(ctx, logger, procCfg.Config)
+			defer sysLogger.Printf("stopped process handler")
+
+			sysLogger.Println("starting process")
+
+			pmuxproc.RunProcess(
+				ctx, stdoutLogger, stderrLogger, sysLogger, procCfg.Config,
+			)
 		}(cfgProc)
 	}
 }

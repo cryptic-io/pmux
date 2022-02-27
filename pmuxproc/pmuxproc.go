@@ -73,15 +73,21 @@ func (cfg Config) withDefaults() Config {
 // It returns nil if the process exits normally with a zero status. It returns
 // an error otherwise.
 //
-// The stdout and stderr of the process will be written to the given Logger, as
-// well as various runtime events.
-func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) (int, error) {
+// The stdout and stderr of the process will be written to the corresponding
+// Loggers. Various runtime events will be written to the sysLogger.
+func RunProcessOnce(
+	ctx context.Context,
+	stdoutLogger, stderrLogger, sysLogger Logger,
+	cfg Config,
+) (
+	int, error,
+) {
 
 	cfg = cfg.withDefaults()
 
 	var wg sync.WaitGroup
 
-	fwdOutPipe := func(r io.Reader) {
+	fwdOutPipe := func(logger Logger, r io.Reader) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -121,8 +127,8 @@ func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) (int, error)
 	}
 	defer stderr.Close()
 
-	fwdOutPipe(stdout)
-	fwdOutPipe(stderr)
+	fwdOutPipe(stdoutLogger, stdout)
+	fwdOutPipe(stderrLogger, stderr)
 
 	if err := cmd.Start(); err != nil {
 		return -1, fmt.Errorf("starting process: %w", err)
@@ -144,7 +150,7 @@ func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) (int, error)
 
 		select {
 		case <-time.After(cfg.SigKillWait):
-			logger.Println("forcefully killing process")
+			sysLogger.Println("forcefully killing process")
 			_ = proc.Signal(os.Kill)
 		case <-stopCh:
 			return
@@ -170,9 +176,13 @@ func RunProcessOnce(ctx context.Context, logger Logger, cfg Config) (int, error)
 // brief wait time between each restart, with an exponential backup mechanism so
 // that the wait time increases upon repeated restarts.
 //
-// The stdout and stderr of the process will be written to the given Logger, as
-// well as various runtime events.
-func RunProcess(ctx context.Context, logger Logger, cfg Config) {
+// The stdout and stderr of the process will be written to the corresponding
+// Loggers. Various runtime events will be written to the sysLogger.
+func RunProcess(
+	ctx context.Context,
+	stdoutLogger, stderrLogger, sysLogger Logger,
+	cfg Config,
+) {
 
 	cfg = cfg.withDefaults()
 
@@ -180,13 +190,17 @@ func RunProcess(ctx context.Context, logger Logger, cfg Config) {
 
 	for {
 		start := time.Now()
-		exitCode, err := RunProcessOnce(ctx, logger, cfg)
+		exitCode, err := RunProcessOnce(
+			ctx,
+			stdoutLogger, stderrLogger, sysLogger,
+			cfg,
+		)
 		took := time.Since(start)
 
 		if err != nil {
-			logger.Printf("exit code %d, %v", exitCode, err)
+			sysLogger.Printf("exit code %d, %v", exitCode, err)
 		} else {
-			logger.Println("exit code 0")
+			sysLogger.Println("exit code 0")
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -207,7 +221,7 @@ func RunProcess(ctx context.Context, logger Logger, cfg Config) {
 			wait = cfg.MaxWait
 		}
 
-		logger.Printf("will restart process in %v", wait)
+		sysLogger.Printf("will restart process in %v", wait)
 
 		select {
 		case <-time.After(wait):
