@@ -62,7 +62,6 @@ stubborn-pinger › rtt min/avg/max/mdev = 11.161/11.161/11.161/0.000 ms
 
 ... Ctrl-C ...
 
-pmux            ~ interrupt signal received, killing all sub-processes
 stubborn-pinger » i will never stop, you will have to SIGKILL me!
 pinger          ~ exit code -1, process exited: signal: interrupt
 pinger          ~ stopped process handler
@@ -75,5 +74,4 @@ stubborn-pinger › rtt min/avg/max/mdev = 14.793/14.793/14.793/0.000 ms
 stubborn-pinger ~ forcefully killing process
 stubborn-pinger ~ exit code -1, process exited: signal: killed
 stubborn-pinger ~ stopped process handler
-pmux            ~ exited gracefully, ciao!
 ```

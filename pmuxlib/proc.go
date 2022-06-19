@@ -1,6 +1,4 @@
-// Package pmuxproc implements the process management aspects of the pmux
-// process.
-package pmuxproc
+package pmuxlib
 
 import (
 	"bufio"
@@ -15,8 +13,11 @@ import (
 	"time"
 )
 
-// Config is used to configure a process via RunProcess.
-type Config struct {
+// ProcessConfig is used to configure a process via RunProcess.
+type ProcessConfig struct {
+
+	// Name of the process to be run. This only gets used by RunPmux.
+	Name string
 
 	// Cmd and Args describe the actual process to run.
 	Cmd  string   `yaml:"cmd"`
@@ -48,7 +49,7 @@ type Config struct {
 	NoRestartOn []int `yaml:"noRestartOn"`
 }
 
-func (cfg Config) withDefaults() Config {
+func (cfg ProcessConfig) withDefaults() ProcessConfig {
 
 	if cfg.MinWait == 0 {
 		cfg.MinWait = 1 * time.Second
@@ -65,10 +66,10 @@ func (cfg Config) withDefaults() Config {
 	return cfg
 }
 
-// RunProcessOnce runs the process described by the Config (though it doesn't
-// use all fields from the Config). The process is killed if the context is
-// canceled. The exit status of the process is returned, or -1 if the process
-// was never started.
+// RunProcessOnce runs the process described by the ProcessConfig (though it
+// doesn't use all fields from the ProcessConfig). The process is killed if the
+// context is canceled. The exit status of the process is returned, or -1 if the
+// process was never started.
 //
 // It returns nil if the process exits normally with a zero status. It returns
 // an error otherwise.
@@ -78,7 +79,7 @@ func (cfg Config) withDefaults() Config {
 func RunProcessOnce(
 	ctx context.Context,
 	stdoutLogger, stderrLogger, sysLogger Logger,
-	cfg Config,
+	cfg ProcessConfig,
 ) (
 	int, error,
 ) {
@@ -165,8 +166,8 @@ func RunProcessOnce(
 	return exitCode, nil
 }
 
-// RunProcess is a process (configured by Config) until the context is canceled,
-// at which point the process is killed and RunProcess returns.
+// RunProcess is a process (configured by ProcessConfig) until the context is
+// canceled, at which point the process is killed and RunProcess returns.
 //
 // The process will be restarted if it exits of its own accord. There will be a
 // brief wait time between each restart, with an exponential backup mechanism so
@@ -177,7 +178,7 @@ func RunProcessOnce(
 func RunProcess(
 	ctx context.Context,
 	stdoutLogger, stderrLogger, sysLogger Logger,
-	cfg Config,
+	cfg ProcessConfig,
 ) {
 
 	cfg = cfg.withDefaults()
