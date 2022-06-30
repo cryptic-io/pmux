@@ -86,12 +86,11 @@ func sigProcessGroup(sysLogger Logger, proc *os.Process, sig syscall.Signal) {
 }
 
 // RunProcessOnce runs the process described by the ProcessConfig (though it
-// doesn't use all fields from the ProcessConfig). The process is killed iff the
-// context is canceled. The exit status of the process is returned, or -1 if the
-// process was never started.
+// doesn't use all fields from the ProcessConfig).
 //
-// It returns nil if the process exits normally with a zero status. It returns
-// an error otherwise.
+// The process is killed if-and-only-if the context is canceled, returning -1
+// and context.Canceled. Otherwise the exit status of the process is returned,
+// or -1 and an error.
 //
 // The stdout and stderr of the process will be written to the corresponding
 // Loggers. Various runtime events will be written to the sysLogger.
@@ -186,13 +185,15 @@ func RunProcessOnce(
 	err = cmd.Wait()
 	close(stopCh)
 
-	exitCode := cmd.ProcessState.ExitCode()
-
-	if err != nil {
-		return exitCode, fmt.Errorf("process exited: %w", err)
+	if err := ctx.Err(); err != nil {
+		return -1, err
 	}
 
-	return exitCode, nil
+	if err != nil {
+		return -1, fmt.Errorf("process exited: %w", err)
+	}
+
+	return cmd.ProcessState.ExitCode(), nil
 }
 
 // RunProcess runs a process (configured by ProcessConfig) until the context is
@@ -224,9 +225,9 @@ func RunProcess(
 		took := time.Since(start)
 
 		if err != nil {
-			sysLogger.Printf("exit code %d, %v", exitCode, err)
+			sysLogger.Printf("exited: %v", err)
 		} else {
-			sysLogger.Println("exit code 0")
+			sysLogger.Printf("exit code: %d", exitCode)
 		}
 
 		if err := ctx.Err(); err != nil {
