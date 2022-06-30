@@ -13,7 +13,9 @@ type Config struct {
 	Processes  []ProcessConfig `yaml:"processes"`
 }
 
-// Run runs the given configuration as if this was a real pmux process.
+// Run runs the given configuration as if this was a real pmux process. It will
+// block until the context is canceled and all child processes have been cleaned
+// up.
 func Run(ctx context.Context, cfg Config) {
 
 	stdoutLogger := newLogger(os.Stdout, logSepStdout, cfg.TimeFormat)

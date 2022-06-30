@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -66,8 +67,26 @@ func (cfg ProcessConfig) withDefaults() ProcessConfig {
 	return cfg
 }
 
+func sigProcessGroup(sysLogger Logger, proc *os.Process, sig syscall.Signal) {
+	sysLogger.Printf("sending %v signal", sig)
+
+	// Because we use Setpgid when starting child processes, child processes
+	// will have the same PGID as their PID. To send a signal to all processes
+	// in a group, you send the signal to the negation of the PGID, which in
+	// this case is equivalent to -PID.
+	//
+	// POSIX is a fucking joke.
+	if err := syscall.Kill(-proc.Pid, sig); err != nil {
+
+		panic(fmt.Errorf(
+			"failed to send %v signal to %d: %w",
+			sig, -proc.Pid, err,
+		))
+	}
+}
+
 // RunProcessOnce runs the process described by the ProcessConfig (though it
-// doesn't use all fields from the ProcessConfig). The process is killed if the
+// doesn't use all fields from the ProcessConfig). The process is killed iff the
 // context is canceled. The exit status of the process is returned, or -1 if the
 // process was never started.
 //
@@ -110,8 +129,16 @@ func RunProcessOnce(
 	cmd := exec.Command(cfg.Cmd, cfg.Args...)
 
 	cmd.Dir = cfg.Dir
-	cmd.Env = os.Environ()
 
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		// Indicates that the child process should be a part of a separate
+		// process group than the parent, so that it does not receive signals
+		// that the parent receives. This is what ensures that context
+		// cancellation is the only way to interrupt the child processes.
+		Setpgid: true,
+	}
+
+	cmd.Env = os.Environ()
 	for k, v := range cfg.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
@@ -138,18 +165,20 @@ func RunProcessOnce(
 	stopCh := make(chan struct{})
 
 	go func(proc *os.Process) {
+
 		select {
 		case <-ctx.Done():
+			sigProcessGroup(sysLogger, proc, syscall.SIGINT)
 		case <-stopCh:
 			return
 		}
 
 		select {
 		case <-time.After(cfg.SigKillWait):
-			sysLogger.Println("forcefully killing process")
-			_ = proc.Signal(os.Kill)
+			sigProcessGroup(sysLogger, proc, syscall.SIGKILL)
 		case <-stopCh:
 		}
+
 	}(cmd.Process)
 
 	wg.Wait()
@@ -166,12 +195,12 @@ func RunProcessOnce(
 	return exitCode, nil
 }
 
-// RunProcess is a process (configured by ProcessConfig) until the context is
+// RunProcess runs a process (configured by ProcessConfig) until the context is
 // canceled, at which point the process is killed and RunProcess returns.
 //
 // The process will be restarted if it exits of its own accord. There will be a
-// brief wait time between each restart, with an exponential backup mechanism so
-// that the wait time increases upon repeated restarts.
+// brief wait time between each restart, with an exponential backoff mechanism
+// so that the wait time increases upon repeated restarts.
 //
 // The stdout and stderr of the process will be written to the corresponding
 // Loggers. Various runtime events will be written to the sysLogger.
